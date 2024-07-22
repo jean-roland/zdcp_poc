@@ -16,12 +16,7 @@
 
 // *** Definitions ***
 // --- Private Macros ---
-#define ZDC_ENTITY_LIST_SIZE 3
 #define ZDC_ENTITY_ID_SELF 0
-#define ZDC_DEF_CMD_KEYEXPR "sensor/1/zdcp"
-#define ZDC_DEF_PUB_KEYEXPR "sensor/1/temp"
-#define ZDC_DEF_SUB_KEYEXPR "sensor/1/data"
-#define ZDC_BUFFER_SIZE 128
 
 // --- Private Types ---
 
@@ -29,6 +24,13 @@ enum _zdc_state_e {
     ZDC_STATE_OFF = 0,
     ZDC_STATE_ON = 1,
     ZDC_STATE_INVALID = 2,
+};
+
+enum _zdc_type_e {
+    ZDC_TYPE_PUB = 0,
+    ZDC_TYPE_SUB = 1,
+    ZDC_TYPE_QUERY = 2,
+    ZDC_TYPE_QUERYABLE = 3,
 };
 
 typedef void (*zdc_data_handler_t)(const z_loaned_sample_t *sample, void *arg);
@@ -62,21 +64,18 @@ typedef struct _zdc_entity_t {
         zdc_query_entity_t query;
         zdc_queryable_entity_t queryable;
     } body;
-    enum {
-        ZDC_TYPE_PUB = 0,
-        ZDC_TYPE_SUB = 1,
-        ZDC_TYPE_QUERY = 2,
-        ZDC_TYPE_QUERYABLE = 3,
-    } type;
+    enum _zdc_type_e type;
     size_t ke_size;
     int8_t state;
 } zdc_entity_t;
 
 typedef struct _zdc_info {
-    uint8_t pSendBuffer[ZDC_BUFFER_SIZE];
-    uint16_t buffSize;
+    uint8_t *pSendBuffer;
+    uint16_t buff_size;
+    uint16_t el_size;
     zdc_cmd_payload_t SendCmdPayload;
-    zdc_entity_t entity_list[ZDC_ENTITY_LIST_SIZE];
+    uint8_t el_idx;
+    zdc_entity_t *entity_list;
     z_owned_session_t session;
 } zdc_info_t;
 
@@ -110,16 +109,6 @@ static void zdc_cmd_handler(const z_loaned_sample_t *sample, void *ctx) {
     z_drop(z_move(value));
 }
 
-static void zdc_data_handler(const z_loaned_sample_t *sample, void *ctx) {
-    (void)(ctx);
-    z_view_string_t keystr;
-    z_keyexpr_as_view_string(z_sample_keyexpr(sample), &keystr);
-    z_owned_string_t value;
-    z_bytes_deserialize_into_string(z_sample_payload(sample), &value);
-    printf(">> [Subscriber] Received ('%s': '%s')\n", z_string_data(z_loan(keystr)), z_string_data(z_loan(value)));
-    z_drop(z_move(value));
-}
-
 static bool zdc_update_entity_state(size_t e_id, uint_fast8_t state) {
     zdc_entity_t *entity = &zdcInfo.entity_list[e_id];
     if (entity->state == state) {
@@ -134,7 +123,6 @@ static bool zdc_update_entity_state(size_t e_id, uint_fast8_t state) {
                 {
                     z_owned_closure_sample_t callback;
                     z_closure(&callback, entity->body.sub.cb_ptr);
-
                     z_view_keyexpr_t ke;
                     z_view_keyexpr_from_str(&ke, entity->ke_suffix);
                     z_declare_subscriber(&entity->body.sub.data, z_loan(zdcInfo.session), z_loan(ke), z_move(callback),
@@ -191,9 +179,9 @@ static bool zdcSendCommand(uint_fast16_t cmdName, bool hasPayload) {
     int msgSize = 0;
     if (hasPayload) {
         zdc_cmd_payload_t *pCmdPayload = &zdcInfo.SendCmdPayload;
-        msgSize = LCSF_Bridge_zdcEncode(cmdName, pCmdPayload, zdcInfo.pSendBuffer, ZDC_BUFFER_SIZE);
+        msgSize = LCSF_Bridge_zdcEncode(cmdName, pCmdPayload, zdcInfo.pSendBuffer, zdcInfo.buff_size);
     } else {
-        msgSize = LCSF_Bridge_zdcEncode(cmdName, NULL, zdcInfo.pSendBuffer, ZDC_BUFFER_SIZE);
+        msgSize = LCSF_Bridge_zdcEncode(cmdName, NULL, zdcInfo.pSendBuffer, zdcInfo.buff_size);
     }
     if (msgSize <= 0) {
         return false;
@@ -205,7 +193,7 @@ static bool zdcSendCommand(uint_fast16_t cmdName, bool hasPayload) {
 static bool zdcExecutelist_entities_req(void) {
     printf("Listing entities\n");
     zdcInfo.SendCmdPayload.list_entities_resp_payload.p_entity_list = (uint8_t *)zdcInfo.entity_list;
-    zdcInfo.SendCmdPayload.list_entities_resp_payload.entity_listSize = ZDC_ENTITY_LIST_SIZE * sizeof(zdc_entity_t);
+    zdcInfo.SendCmdPayload.list_entities_resp_payload.entity_listSize = zdcInfo.el_size * sizeof(zdc_entity_t);
     zdcSendCommand(ZDC_CMD_LIST_ENTITIES_RESP, true);
     return true;
 }
@@ -218,7 +206,7 @@ static bool zdcExecuteset_entity_state(zdc_cmd_payload_t *pCmdPayload) {
     uint16_t e_id = pCmdPayload->set_entity_state_payload.entity_id;
     uint8_t state = pCmdPayload->set_entity_state_payload.state;
     // Process data
-    if (e_id >= ZDC_ENTITY_LIST_SIZE) {
+    if (e_id >= zdcInfo.el_size) {
         return false;
     }
     printf("Updating state: %d, %d\n", e_id, state);
@@ -234,7 +222,7 @@ static bool zdcExecuteset_entity_keyexpr(zdc_cmd_payload_t *pCmdPayload) {
     uint16_t e_id = pCmdPayload->set_entity_keyexpr_payload.entity_id;
     char *ke = pCmdPayload->set_entity_keyexpr_payload.p_keyexpr;
     // Process data
-    if (e_id >= ZDC_ENTITY_LIST_SIZE) {
+    if (e_id >= zdcInfo.el_size) {
         return false;
     }
     // Update entity
@@ -265,7 +253,7 @@ static bool zdcExecuteset_entity_config(zdc_cmd_payload_t *pCmdPayload) {
     uint16_t e_id = pCmdPayload->set_entity_config_payload.entity_id;
     // void *config = pCmdPayload->set_entity_config_payload.p_entitiy_config;
     // Process data
-    if (e_id >= ZDC_ENTITY_LIST_SIZE) {
+    if (e_id >= zdcInfo.el_size) {
         return false;
     }
     // Update entity
@@ -284,46 +272,71 @@ static bool zdcExecuteset_entity_config(zdc_cmd_payload_t *pCmdPayload) {
  *
  * \return bool: true if operation was a success
  */
-bool zdc_MainInit(const z_loaned_session_t *zs) {
+bool zdc_MainInit(const z_loaned_session_t *zs, size_t entity_nb, size_t buff_size, char *zdc_suffix) {
     LCSF_ValidatorAddProtocol(0, &lcsf_zdcp_desc);
     LCSF_Bridge_zdcInit();
+    zdcInfo.el_idx = 0;
+    zdcInfo.el_size = entity_nb + 1;
+    zdcInfo.entity_list = (zdc_entity_t *)malloc(sizeof(zdc_entity_t) * zdcInfo.el_size);
+    zdcInfo.buff_size = buff_size;
+    zdcInfo.pSendBuffer = (uint8_t *)malloc(zdcInfo.buff_size);
 
     // Clone zenoh session
     z_clone(zdcInfo.session, zs);
-    // Init entities
-    zdcInfo.entity_list[ZDC_ENTITY_ID_SELF].type = ZDC_TYPE_SUB;
-    zdcInfo.entity_list[ZDC_ENTITY_ID_SELF].state = ZDC_STATE_OFF;
-    zdcInfo.entity_list[ZDC_ENTITY_ID_SELF].ke_suffix = (char *)malloc(sizeof(ZDC_DEF_CMD_KEYEXPR));
-    zdcInfo.entity_list[ZDC_ENTITY_ID_SELF].ke_size = sizeof(ZDC_DEF_CMD_KEYEXPR);
-    strcpy(zdcInfo.entity_list[ZDC_ENTITY_ID_SELF].ke_suffix, ZDC_DEF_CMD_KEYEXPR);
-    zdcInfo.entity_list[ZDC_ENTITY_ID_SELF].body.sub.config = NULL;
-    z_subscriber_null(&zdcInfo.entity_list[ZDC_ENTITY_ID_SELF].body.sub.data);
-    zdcInfo.entity_list[ZDC_ENTITY_ID_SELF].body.sub.cb_ptr = zdc_cmd_handler;
-    zdc_update_entity_state(ZDC_ENTITY_ID_SELF, ZDC_STATE_ON);
-
-    zdcInfo.entity_list[1].type = ZDC_TYPE_PUB;
-    zdcInfo.entity_list[1].state = ZDC_STATE_OFF;
-    zdcInfo.entity_list[1].ke_suffix = (char *)malloc(sizeof(ZDC_DEF_PUB_KEYEXPR));
-    zdcInfo.entity_list[1].ke_size = sizeof(ZDC_DEF_PUB_KEYEXPR);
-    strcpy(zdcInfo.entity_list[1].ke_suffix, ZDC_DEF_PUB_KEYEXPR);
-    zdc_update_entity_state(1, ZDC_STATE_ON);
-
-    zdcInfo.entity_list[2].type = ZDC_TYPE_SUB;
-    zdcInfo.entity_list[2].state = ZDC_STATE_OFF;
-    zdcInfo.entity_list[2].ke_suffix = (char *)malloc(sizeof(ZDC_DEF_SUB_KEYEXPR));
-    zdcInfo.entity_list[2].ke_size = sizeof(ZDC_DEF_SUB_KEYEXPR);
-    strcpy(zdcInfo.entity_list[2].ke_suffix, ZDC_DEF_SUB_KEYEXPR);
-    zdcInfo.entity_list[2].body.sub.config = NULL;
-    z_subscriber_null(&zdcInfo.entity_list[2].body.sub.data);
-    zdcInfo.entity_list[2].body.sub.cb_ptr = zdc_data_handler;
-    zdc_update_entity_state(2, ZDC_STATE_OFF);
+    // Init zdcp sub entity
+    zdcInfo.entity_list[zdcInfo.el_idx].type = ZDC_TYPE_SUB;
+    zdcInfo.entity_list[zdcInfo.el_idx].state = ZDC_STATE_OFF;
+    zdcInfo.entity_list[zdcInfo.el_idx].ke_size = strlen(zdc_suffix) + 1;
+    zdcInfo.entity_list[zdcInfo.el_idx].ke_suffix = (char *)malloc(zdcInfo.entity_list[zdcInfo.el_idx].ke_size);
+    strcpy(zdcInfo.entity_list[zdcInfo.el_idx].ke_suffix, zdc_suffix);
+    zdcInfo.entity_list[zdcInfo.el_idx].body.sub.config = NULL;
+    z_subscriber_null(&zdcInfo.entity_list[zdcInfo.el_idx].body.sub.data);
+    zdcInfo.entity_list[zdcInfo.el_idx].body.sub.cb_ptr = zdc_cmd_handler;
+    zdc_update_entity_state(zdcInfo.el_idx, ZDC_STATE_ON);
+    zdcInfo.el_idx++;
 
     return true;
 }
 
+void zdc_add_pub_entity(_Bool start_on, char *ke_suffix, z_put_options_t *config) {
+    zdcInfo.entity_list[zdcInfo.el_idx].type = ZDC_TYPE_PUB;
+    zdcInfo.entity_list[zdcInfo.el_idx].state = ZDC_STATE_INVALID;
+    zdcInfo.entity_list[zdcInfo.el_idx].ke_size = strlen(ke_suffix) + 1;
+    zdcInfo.entity_list[zdcInfo.el_idx].ke_suffix = (char *)malloc(zdcInfo.entity_list[zdcInfo.el_idx].ke_size);
+    strcpy(zdcInfo.entity_list[zdcInfo.el_idx].ke_suffix, ke_suffix);
+
+    zdcInfo.entity_list[zdcInfo.el_idx].body.pub.config = config;
+
+    if (start_on) {
+        zdc_update_entity_state(zdcInfo.el_idx, ZDC_STATE_ON);
+    } else {
+        zdc_update_entity_state(zdcInfo.el_idx, ZDC_STATE_OFF);
+    }
+    zdcInfo.el_idx++;
+}
+
+void zdc_add_sub_entity(_Bool start_on, char *ke_suffix, z_subscriber_options_t *config, zdc_data_handler_t cb_ptr) {
+    zdcInfo.entity_list[zdcInfo.el_idx].type = ZDC_TYPE_SUB;
+    zdcInfo.entity_list[zdcInfo.el_idx].state = ZDC_STATE_INVALID;
+    zdcInfo.entity_list[zdcInfo.el_idx].ke_size = strlen(ke_suffix) + 1;
+    zdcInfo.entity_list[zdcInfo.el_idx].ke_suffix = (char *)malloc(zdcInfo.entity_list[zdcInfo.el_idx].ke_size);
+    strcpy(zdcInfo.entity_list[zdcInfo.el_idx].ke_suffix, ke_suffix);
+
+    zdcInfo.entity_list[zdcInfo.el_idx].body.sub.config = config;
+    z_subscriber_null(&zdcInfo.entity_list[zdcInfo.el_idx].body.sub.data);
+    zdcInfo.entity_list[zdcInfo.el_idx].body.sub.cb_ptr = cb_ptr;
+
+    if (start_on) {
+        zdc_update_entity_state(zdcInfo.el_idx, ZDC_STATE_ON);
+    } else {
+        zdc_update_entity_state(zdcInfo.el_idx, ZDC_STATE_OFF);
+    }
+    zdcInfo.el_idx++;
+}
+
 void zdc_close(void) {
     // Stop entities
-    for (size_t i = 0; i < ZDC_ENTITY_LIST_SIZE; i++) {
+    for (size_t i = 0; i < zdcInfo.el_size; i++) {
         if (zdcInfo.entity_list[i].state == ZDC_STATE_ON) {
             zdc_update_entity_state(i, ZDC_STATE_OFF);
         }
@@ -334,14 +347,14 @@ void zdc_close(void) {
 }
 
 int zdc_entity_state(uint_fast8_t eid) {
-    if (eid >= ZDC_ENTITY_LIST_SIZE) {
+    if (eid >= zdcInfo.el_size) {
         return -1;
     }
     return (int)zdcInfo.entity_list[eid].state;
 }
 
 char *zdc_entity_ke_suffix(uint_fast8_t eid) {
-    if (eid >= ZDC_ENTITY_LIST_SIZE) {
+    if (eid >= zdcInfo.el_size) {
         return NULL;
     }
     return zdcInfo.entity_list[eid].ke_suffix;

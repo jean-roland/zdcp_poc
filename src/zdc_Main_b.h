@@ -85,13 +85,17 @@ typedef union _zdc_cmd_payload {
  *
  * \return bool: true if operation was a success
  */
-bool zdc_MainInit(const z_loaned_session_t *zs);
+bool zdc_MainInit(const z_loaned_session_t *zs, size_t entity_nb, size_t buff_size, char *zdc_suffix);
+
+void zdc_add_pub_entity(_Bool start_on, char *ke_suffix, z_put_options_t *config);
+void zdc_add_sub_entity(_Bool start_on, char *ke_suffix, z_subscriber_options_t *config,
+    void (*cb_ptr)(const z_loaned_sample_t *sample, void *arg));
 
 void zdc_close(void);
 
 int zdc_entity_state(uint_fast8_t eid);
 
-char * zdc_entity_ke_suffix(uint_fast8_t eid);
+char *zdc_entity_ke_suffix(uint_fast8_t eid);
 
 /**
  * \fn bool zdc_MainExecute(uint_fast16_t cmdName, zdc_cmd_payload_t *pCmdPayload)
