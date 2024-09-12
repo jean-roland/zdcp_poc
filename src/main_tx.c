@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
 
     printf("Opening session...\n");
     z_owned_session_t s;
-    if (z_open(&s, z_move(config)) < 0) {
+    if (z_open(&s, z_move(config), NULL) < 0) {
         printf("Unable to open session!\n");
         return -1;
     }
@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
     // Start read and lease tasks for zenoh-pico
     if (zp_start_read_task(z_loan_mut(s), NULL) < 0 || zp_start_lease_task(z_loan_mut(s), NULL) < 0) {
         printf("Unable to start read and lease tasks\n");
-        z_close(z_session_move(&s));
+        z_close(z_session_move(&s), NULL);
         return -1;
     }
 
@@ -84,6 +84,10 @@ int main(int argc, char **argv) {
     uint8_t *buffer = NULL;
     size_t buff_size = 0;
 
+    if (cmd == NULL) {
+        printf("No command specified\n");
+        return -1;
+    }
     if (strcmp(cmd, "keyexpr") == 0) {
         if (!zdc_encode_keyexpr(eid, value, &buffer, &buff_size)) {
             printf("Failed encoding keyexpr\n");
@@ -107,7 +111,7 @@ int main(int argc, char **argv) {
         return -1;
     }
     z_owned_bytes_t payload;
-    z_bytes_serialize_from_slice(&payload, buffer, buff_size);
+    z_bytes_serialize_from_buf(&payload, buffer, buff_size);
     z_view_keyexpr_t ke;
     z_view_keyexpr_from_str(&ke, keyexpr);
 
@@ -121,6 +125,6 @@ int main(int argc, char **argv) {
         printf("Oh no! Put has failed...\n");
     }
     // Clean up
-    z_close(z_move(s));
+    z_close(z_move(s), NULL);
     return 0;
 }

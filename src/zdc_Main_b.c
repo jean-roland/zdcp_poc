@@ -114,6 +114,10 @@ static bool zdc_update_entity_state(size_t e_id, uint_fast8_t state) {
     if (entity->state == state) {
         return true;
     }
+    if ((entity->state == ZDC_STATE_INVALID) && (state == ZDC_STATE_OFF)) {
+        entity->state = state;
+        return true;
+    }
     entity->state = ZDC_STATE_INVALID;
     if (state == ZDC_STATE_ON) {
         switch (entity->type) {
@@ -149,12 +153,12 @@ static bool zdc_update_entity_state(size_t e_id, uint_fast8_t state) {
             case ZDC_TYPE_PUB:
                 break;
             case ZDC_TYPE_SUB:
-                z_undeclare_subscriber(&entity->body.sub.data);
+                z_undeclare_subscriber(z_move(entity->body.sub.data));
                 break;
             case ZDC_TYPE_QUERY:
                 break;
             case ZDC_TYPE_QUERYABLE:
-                z_undeclare_queryable(&entity->body.queryable.data);
+                z_undeclare_queryable(z_move(entity->body.queryable.data));
                 break;
             default:
                 return false;
@@ -290,7 +294,6 @@ bool zdc_MainInit(const z_loaned_session_t *zs, size_t entity_nb, size_t buff_si
     zdcInfo.entity_list[zdcInfo.el_idx].ke_suffix = (char *)malloc(zdcInfo.entity_list[zdcInfo.el_idx].ke_size);
     strcpy(zdcInfo.entity_list[zdcInfo.el_idx].ke_suffix, zdc_suffix);
     zdcInfo.entity_list[zdcInfo.el_idx].body.sub.config = NULL;
-    z_subscriber_null(&zdcInfo.entity_list[zdcInfo.el_idx].body.sub.data);
     zdcInfo.entity_list[zdcInfo.el_idx].body.sub.cb_ptr = zdc_cmd_handler;
     zdc_update_entity_state(zdcInfo.el_idx, ZDC_STATE_ON);
     zdcInfo.el_idx++;
@@ -323,7 +326,6 @@ void zdc_add_sub_entity(_Bool start_on, char *ke_suffix, z_subscriber_options_t 
     strcpy(zdcInfo.entity_list[zdcInfo.el_idx].ke_suffix, ke_suffix);
 
     zdcInfo.entity_list[zdcInfo.el_idx].body.sub.config = config;
-    z_subscriber_null(&zdcInfo.entity_list[zdcInfo.el_idx].body.sub.data);
     zdcInfo.entity_list[zdcInfo.el_idx].body.sub.cb_ptr = cb_ptr;
 
     if (start_on) {
@@ -343,7 +345,7 @@ void zdc_close(void) {
         free(zdcInfo.entity_list[i].ke_suffix);
     }
     // Free memory
-    z_drop(&zdcInfo.session);
+    z_drop(z_move(zdcInfo.session));
 }
 
 int zdc_entity_state(uint_fast8_t eid) {
