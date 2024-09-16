@@ -33,8 +33,8 @@ enum _zdc_type_e {
     ZDC_TYPE_QUERYABLE = 3,
 };
 
-typedef void (*zdc_data_handler_t)(const z_loaned_sample_t *sample, void *arg);
-typedef void (*zdc_queryable_handler_t)(const z_loaned_query_t *query, void *arg);
+typedef void (*zdc_data_handler_t)(z_loaned_sample_t *sample, void *arg);
+typedef void (*zdc_queryable_handler_t)(z_loaned_query_t *query, void *arg);
 
 typedef struct _zdc_pub_entity_t {
     z_put_options_t *config;
@@ -76,7 +76,7 @@ typedef struct _zdc_info {
     zdc_cmd_payload_t SendCmdPayload;
     uint8_t el_idx;
     zdc_entity_t *entity_list;
-    z_owned_session_t session;
+    const z_loaned_session_t *session;
 } zdc_info_t;
 
 // --- Private Function Prototypes ---
@@ -100,7 +100,7 @@ static const lcsf_validator_protocol_desc_t lcsf_zdcp_desc = {
 
 // *** Private Functions ***
 
-static void zdc_cmd_handler(const z_loaned_sample_t *sample, void *ctx) {
+static void zdc_cmd_handler(z_loaned_sample_t *sample, void *ctx) {
     (void)(ctx);
     z_owned_slice_t value;
     z_bytes_deserialize_into_slice(z_sample_payload(sample), &value);
@@ -129,8 +129,8 @@ static bool zdc_update_entity_state(size_t e_id, uint_fast8_t state) {
                     z_closure(&callback, entity->body.sub.cb_ptr);
                     z_view_keyexpr_t ke;
                     z_view_keyexpr_from_str(&ke, entity->ke_suffix);
-                    z_declare_subscriber(&entity->body.sub.data, z_loan(zdcInfo.session), z_loan(ke), z_move(callback),
-                        entity->body.sub.config);
+                    z_declare_subscriber(
+                        &entity->body.sub.data, zdcInfo.session, z_loan(ke), z_move(callback), entity->body.sub.config);
                 }
                 break;
             case ZDC_TYPE_QUERY:
@@ -141,7 +141,7 @@ static bool zdc_update_entity_state(size_t e_id, uint_fast8_t state) {
                     z_closure(&callback, entity->body.queryable.cb_ptr);
                     z_view_keyexpr_t ke;
                     z_view_keyexpr_from_str(&ke, entity->ke_suffix);
-                    z_declare_queryable(&entity->body.queryable.data, z_loan(zdcInfo.session), z_loan(ke), z_move(callback),
+                    z_declare_queryable(&entity->body.queryable.data, zdcInfo.session, z_loan(ke), z_move(callback),
                         entity->body.queryable.config);
                 }
                 break;
@@ -286,7 +286,7 @@ bool zdc_MainInit(const z_loaned_session_t *zs, size_t entity_nb, size_t buff_si
     zdcInfo.pSendBuffer = (uint8_t *)malloc(zdcInfo.buff_size);
 
     // Clone zenoh session
-    z_clone(zdcInfo.session, zs);
+    zdcInfo.session = zs;
     // Init zdcp sub entity
     zdcInfo.entity_list[zdcInfo.el_idx].type = ZDC_TYPE_SUB;
     zdcInfo.entity_list[zdcInfo.el_idx].state = ZDC_STATE_OFF;
@@ -344,8 +344,6 @@ void zdc_close(void) {
         }
         free(zdcInfo.entity_list[i].ke_suffix);
     }
-    // Free memory
-    z_drop(z_move(zdcInfo.session));
 }
 
 int zdc_entity_state(uint_fast8_t eid) {

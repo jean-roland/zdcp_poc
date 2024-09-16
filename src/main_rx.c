@@ -25,7 +25,7 @@
 #define ZDC_BUFFER_SIZE 128
 #define ZDC_ENTITY_NB 2
 
-static void app_data_handler(const z_loaned_sample_t *sample, void *ctx) {
+static void app_data_handler(z_loaned_sample_t *sample, void *ctx) {
     (void)(ctx);
     z_view_string_t keystr;
     z_keyexpr_as_view_string(z_sample_keyexpr(sample), &keystr);

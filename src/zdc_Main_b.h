@@ -89,7 +89,7 @@ bool zdc_MainInit(const z_loaned_session_t *zs, size_t entity_nb, size_t buff_si
 
 void zdc_add_pub_entity(_Bool start_on, char *ke_suffix, z_put_options_t *config);
 void zdc_add_sub_entity(_Bool start_on, char *ke_suffix, z_subscriber_options_t *config,
-    void (*cb_ptr)(const z_loaned_sample_t *sample, void *arg));
+    void (*cb_ptr)(z_loaned_sample_t *sample, void *arg));
 
 void zdc_close(void);
 
