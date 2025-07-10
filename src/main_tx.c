@@ -25,6 +25,22 @@
 #include "zenoh-pico/api/macros.h"
 #include "zenoh-pico/api/types.h"
 
+void reply_handler(z_loaned_reply_t *reply, void *ctx) {
+    (void)(ctx);
+    if (z_reply_is_ok(reply)) {
+        const z_loaned_sample_t *sample = z_reply_ok(reply);
+        z_view_string_t keystr;
+        z_keyexpr_as_view_string(z_sample_keyexpr(sample), &keystr);
+        z_owned_slice_t value;
+        z_bytes_to_slice(z_sample_payload(sample), &value);
+        printf("Received reply on '%.*s'", (int)z_string_len(z_loan(keystr)), z_string_data(z_loan(keystr)));
+        // TODO: Process reply
+        z_drop(z_move(value));
+    } else {
+        printf(">> Received an error\n");
+    }
+}
+
 int main(int argc, char **argv) {
     int opt;
     char *keyexpr = NULL;
@@ -115,13 +131,15 @@ int main(int argc, char **argv) {
     z_view_keyexpr_t ke;
     z_view_keyexpr_from_str(&ke, keyexpr);
 
-    // printf("Putting Data on '%s': ", keyexpr);
-    // for (size_t i = 0; i < buff_size; i++) {
-    //     printf("0x%02x, ", buffer[i]);
-    // }
-    // printf("\n");
+    z_get_options_t opts;
+    z_get_options_default(&opts);
+    opts.payload = z_bytes_move(&payload);
+
+    z_owned_closure_reply_t callback;
+    z_closure(&callback, reply_handler, NULL, NULL);
+
     printf("Sending command\n");
-    if (z_put(z_loan(s), z_loan(ke), z_move(payload), NULL) < 0) {
+    if (z_get(z_loan(s), z_loan(ke), "", z_move(callback), &opts) < 0) {
         printf("Oh no! Put has failed...\n");
     }
     // Clean up

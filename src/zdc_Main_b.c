@@ -100,12 +100,17 @@ static const lcsf_validator_protocol_desc_t lcsf_zdcp_desc = {
 
 // *** Private Functions ***
 
-static void zdc_cmd_handler(z_loaned_sample_t *sample, void *ctx) {
+static void zdc_cmd_handler(z_loaned_query_t *query, void *ctx) {
     (void)(ctx);
     z_owned_slice_t value;
-    z_bytes_to_slice(z_sample_payload(sample), &value);
+    z_bytes_to_slice(z_query_payload(query), &value);
+    if (z_slice_len(z_loan(value)) == 0) {
+        printf("Didn't receive any comment with query\n");
+        return;
+    }
     printf("Received some command!\n");
     LCSF_TranscoderReceive(z_slice_data(z_loan(value)), z_slice_len(z_loan(value)));
+    // TODO REPLY
     z_drop(z_move(value));
 }
 
@@ -288,13 +293,13 @@ bool zdc_MainInit(const z_loaned_session_t *zs, size_t entity_nb, size_t buff_si
     // Clone zenoh session
     zdcInfo.session = zs;
     // Init zdcp sub entity
-    zdcInfo.entity_list[zdcInfo.el_idx].type = ZDC_TYPE_SUB;
+    zdcInfo.entity_list[zdcInfo.el_idx].type = ZDC_TYPE_QUERYABLE;
     zdcInfo.entity_list[zdcInfo.el_idx].state = ZDC_STATE_OFF;
     zdcInfo.entity_list[zdcInfo.el_idx].ke_size = strlen(zdc_suffix) + 1;
     zdcInfo.entity_list[zdcInfo.el_idx].ke_suffix = (char *)malloc(zdcInfo.entity_list[zdcInfo.el_idx].ke_size);
     strcpy(zdcInfo.entity_list[zdcInfo.el_idx].ke_suffix, zdc_suffix);
-    zdcInfo.entity_list[zdcInfo.el_idx].body.sub.config = NULL;
-    zdcInfo.entity_list[zdcInfo.el_idx].body.sub.cb_ptr = zdc_cmd_handler;
+    zdcInfo.entity_list[zdcInfo.el_idx].body.queryable.config = NULL;
+    zdcInfo.entity_list[zdcInfo.el_idx].body.queryable.cb_ptr = zdc_cmd_handler;
     zdc_update_entity_state(zdcInfo.el_idx, ZDC_STATE_ON);
     zdcInfo.el_idx++;
 
