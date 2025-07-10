@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
     // Start read and lease tasks for zenoh-pico
     if (zp_start_read_task(z_loan_mut(s), NULL) < 0 || zp_start_lease_task(z_loan_mut(s), NULL) < 0) {
         printf("Unable to start read and lease tasks\n");
-        z_close(z_session_move(&s), NULL);
+        z_drop(z_move(s));
         return -1;
     }
 
@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
         return -1;
     }
     z_owned_bytes_t payload;
-    z_bytes_serialize_from_buf(&payload, buffer, buff_size);
+    z_bytes_copy_from_buf(&payload, buffer, buff_size);
     z_view_keyexpr_t ke;
     z_view_keyexpr_from_str(&ke, keyexpr);
 
@@ -125,6 +125,6 @@ int main(int argc, char **argv) {
         printf("Oh no! Put has failed...\n");
     }
     // Clean up
-    z_close(z_move(s), NULL);
+    z_drop(z_move(s));
     return 0;
 }

@@ -103,7 +103,7 @@ static const lcsf_validator_protocol_desc_t lcsf_zdcp_desc = {
 static void zdc_cmd_handler(z_loaned_sample_t *sample, void *ctx) {
     (void)(ctx);
     z_owned_slice_t value;
-    z_bytes_deserialize_into_slice(z_sample_payload(sample), &value);
+    z_bytes_to_slice(z_sample_payload(sample), &value);
     printf("Received some command!\n");
     LCSF_TranscoderReceive(z_slice_data(z_loan(value)), z_slice_len(z_loan(value)));
     z_drop(z_move(value));
@@ -130,7 +130,7 @@ static bool zdc_update_entity_state(size_t e_id, uint_fast8_t state) {
                     z_view_keyexpr_t ke;
                     z_view_keyexpr_from_str(&ke, entity->ke_suffix);
                     z_declare_subscriber(
-                        &entity->body.sub.data, zdcInfo.session, z_loan(ke), z_move(callback), entity->body.sub.config);
+                        zdcInfo.session, &entity->body.sub.data, z_loan(ke), z_move(callback), entity->body.sub.config);
                 }
                 break;
             case ZDC_TYPE_QUERY:
@@ -141,7 +141,7 @@ static bool zdc_update_entity_state(size_t e_id, uint_fast8_t state) {
                     z_closure(&callback, entity->body.queryable.cb_ptr);
                     z_view_keyexpr_t ke;
                     z_view_keyexpr_from_str(&ke, entity->ke_suffix);
-                    z_declare_queryable(&entity->body.queryable.data, zdcInfo.session, z_loan(ke), z_move(callback),
+                    z_declare_queryable(zdcInfo.session, &entity->body.queryable.data, z_loan(ke), z_move(callback),
                         entity->body.queryable.config);
                 }
                 break;
