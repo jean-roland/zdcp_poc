@@ -12,12 +12,27 @@
 #include "LCSF_Bridge_zdc_a.h"
 #include <LCSF_Config.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <zenoh-pico.h>
 
 // *** Definitions ***
 // --- Private Macros ---
 #define ZDC_SEND_BUFF_SIZE 128
 
 // --- Private Types ---
+enum _zdc_state_e {
+    ZDC_STATE_OFF = 0,
+    ZDC_STATE_ON = 1,
+    ZDC_STATE_INVALID = 2,
+};
+
+enum _zdc_type_e {
+    ZDC_TYPE_PUB = 0,
+    ZDC_TYPE_SUB = 1,
+    ZDC_TYPE_QUERY = 2,
+    ZDC_TYPE_QUERYABLE = 3,
+};
+
 typedef struct _zdc_info {
     zdc_cmd_payload_t SendCmdPayload;
     uint16_t curr_size;
@@ -31,6 +46,9 @@ static bool zdcExecutelist_entities_resp(zdc_cmd_payload_t *pCmdPayload);
 
 // --- Private Variables ---
 static zdc_info_t zdcInfo;
+
+static const char *ZDC_STATE_TO_STR[] = {"Off", "On", "Invalid"};
+static const char *ZDC_TYPE_TO_STR[] = {"Pub", "Sub", "Querier", "Queryable"};
 
 static const lcsf_validator_protocol_desc_t lcsf_zdcp_desc = {
     LCSF_ZDC_PROTOCOL_ID,
@@ -87,11 +105,34 @@ static bool zdcExecutelist_entities_resp(zdc_cmd_payload_t *pCmdPayload) {
     if (pCmdPayload == NULL) {
         return false;
     }
-    // Declare attributes
-    // uint8_t *m_list_entities_resp_entity_list = NULL;
     // Retrieve attributes data
-    // m_list_entities_resp_entity_list = pCmdPayload->list_entities_resp_payload.p_entity_list;
+    uint8_t *m_entity_list = pCmdPayload->list_entities_resp_payload.p_entity_list;
+    uint16_t m_entity_nb = pCmdPayload->list_entities_resp_payload.entity_nb;
     // Process data
+    printf("Entities list (%d):\n", m_entity_nb);
+    size_t curr_idx = 0;
+    for (uint32_t i = 0; i < m_entity_nb; i++) {
+        uint8_t type = m_entity_list[curr_idx++];
+        uint8_t state = m_entity_list[curr_idx++];
+        uint8_t ke_size = m_entity_list[curr_idx++];
+        char *ke_suffix = (char *)&m_entity_list[curr_idx];
+        printf("Entity %d: type: %s, state: %s, ke: %.*s\n", i, ZDC_TYPE_TO_STR[type], ZDC_STATE_TO_STR[state], (int)ke_size,
+            ke_suffix);
+        curr_idx += ke_size;
+    }
+    return true;
+}
+
+static bool zdcExecutecmd_status(zdc_cmd_payload_t *pCmdPayload) {
+    if (pCmdPayload == NULL) {
+        return false;
+    }
+    // Declare attributes
+    uint8_t m_cmd_status_status_value = 0;
+    // Retrieve attributes data
+    m_cmd_status_status_value = pCmdPayload->cmd_status_payload.status_value;
+    // Process data
+    printf("Command status %s\n", (m_cmd_status_status_value == 0) ? "Ok" : "Err");
     return true;
 }
 
@@ -131,7 +172,14 @@ bool zdc_encode_state(uint_fast8_t eid, uint_fast8_t state, uint8_t **pBuffer, s
     return true;
 }
 
-// Place custom public functions here
+bool zdc_encode_list_entity(uint8_t **pBuffer, size_t *buffSize) {
+    if (!zdcSendCommand(ZDC_CMD_LIST_ENTITIES_REQ, false)) {
+        return false;
+    }
+    *pBuffer = zdcInfo.SendBuffer;
+    *buffSize = zdcInfo.curr_size;
+    return true;
+}
 
 /**
  * \fn bool zdc_MainExecute(uint_fast16_t cmdName, zdc_cmd_payload_t *pCmdPayload)
@@ -145,6 +193,9 @@ bool zdc_MainExecute(uint_fast16_t cmdName, zdc_cmd_payload_t *pCmdPayload) {
     switch (cmdName) {
         case ZDC_CMD_LIST_ENTITIES_RESP:
             return zdcExecutelist_entities_resp(pCmdPayload);
+
+        case ZDC_CMD_CMD_STATUS:
+            return zdcExecutecmd_status(pCmdPayload);
 
         default:
             // This case can be customized (e.g to send an error command)

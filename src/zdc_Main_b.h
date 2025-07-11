@@ -24,12 +24,18 @@ enum _zdc_cmd_names {
     ZDC_CMD_SET_ENTITY_STATE,
     ZDC_CMD_SET_ENTITY_KEYEXPR,
     ZDC_CMD_SET_ENTITY_CONFIG,
+    ZDC_CMD_CMD_STATUS,
     ZDC_CMD_COUNT,
 };
 
 // Attributes enums
+enum _zdc_cmd_status_att_names {
+    ZDC_CMD_STATUS_ATT_STATUS_VALUE,
+};
+
 enum _zdc_list_entities_resp_att_names {
     ZDC_LIST_ENTITIES_RESP_ATT_ENTITY_LIST,
+    ZDC_LIST_ENTITIES_RESP_ATT_ENTITY_NB,
 };
 
 enum _zdc_set_entity_config_att_names {
@@ -51,6 +57,7 @@ enum _zdc_set_entity_state_att_names {
 typedef struct _zdc_list_entities_resp_att_payload {
     uint32_t entity_listSize;
     uint8_t *p_entity_list;
+    uint16_t entity_nb;
 } zdc_list_entities_resp_att_payload_t;
 
 typedef struct _zdc_set_entity_state_att_payload {
@@ -69,12 +76,17 @@ typedef struct _zdc_set_entity_config_att_payload {
     uint8_t *p_entitiy_config;
 } zdc_set_entity_config_att_payload_t;
 
+typedef struct _zdc_cmd_status_att_payload {
+    uint8_t status_value;
+} zdc_cmd_status_att_payload_t;
+
 // Command payload union
 typedef union _zdc_cmd_payload {
     zdc_list_entities_resp_att_payload_t list_entities_resp_payload;
     zdc_set_entity_state_att_payload_t set_entity_state_payload;
     zdc_set_entity_keyexpr_att_payload_t set_entity_keyexpr_payload;
     zdc_set_entity_config_att_payload_t set_entity_config_payload;
+    zdc_cmd_status_att_payload_t cmd_status_payload;
 } zdc_cmd_payload_t;
 
 // --- Public Function Prototypes ---
@@ -88,6 +100,7 @@ typedef union _zdc_cmd_payload {
 bool zdc_MainInit(const z_loaned_session_t *zs, size_t entity_nb, size_t buff_size, char *zdc_suffix);
 
 void zdc_add_pub_entity(_Bool start_on, char *ke_suffix, z_put_options_t *config);
+
 void zdc_add_sub_entity(_Bool start_on, char *ke_suffix, z_subscriber_options_t *config,
     void (*cb_ptr)(z_loaned_sample_t *sample, void *arg));
 

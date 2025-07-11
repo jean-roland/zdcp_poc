@@ -1,5 +1,5 @@
 /**
- * \file LCSF_Bridge_zdc.c
+ * \file LCSF_Bridge_zdc_b.c
  * \brief zdc LCSF bridge module (B)
  * \author LCSF Generator v1.4
  *
@@ -13,7 +13,6 @@
 #include <LCSF_Config.h>
 #include <lib/Filo.h>
 #include <lib/LCSF_Transcoder.h>
-#include <lib/LCSF_Validator.h>
 
 // *** Definitions ***
 // --- Private Types ---
@@ -33,6 +32,7 @@ static const uint16_t LCSF_Bridge_zdc_CMDNAME2CMDID[LCSF_ZDC_CMD_NB] = {
     LCSF_ZDC_CMD_ID_SET_ENTITY_STATE,
     LCSF_ZDC_CMD_ID_SET_ENTITY_KEYEXPR,
     LCSF_ZDC_CMD_ID_SET_ENTITY_CONFIG,
+    LCSF_ZDC_CMD_ID_CMD_STATUS,
 };
 
 // --- Private Function Prototypes ---
@@ -42,6 +42,7 @@ static void LCSF_Bridge_zdcset_entity_keyexprGetData(lcsf_valid_att_t *pAttArray
 static void LCSF_Bridge_zdcset_entity_configGetData(lcsf_valid_att_t *pAttArray, zdc_cmd_payload_t *pCmdPayload);
 static void LCSF_Bridge_zdcGetCmdData(uint_fast16_t cmdName, lcsf_valid_att_t *pAttArray, zdc_cmd_payload_t *pCmdPayload);
 static bool LCSF_Bridge_zdclist_entities_respFillAtt(lcsf_valid_att_t **pAttArrayAddr, zdc_cmd_payload_t *pCmdPayload);
+static bool LCSF_Bridge_zdccmd_statusFillAtt(lcsf_valid_att_t **pAttArrayAddr, zdc_cmd_payload_t *pCmdPayload);
 static bool LCSF_Bridge_zdcFillCmdAtt(uint_fast16_t cmdName, lcsf_valid_att_t **pAttArrayAddr, zdc_cmd_payload_t *pCmdPayload);
 
 // --- Private Variables ---
@@ -71,6 +72,8 @@ static uint16_t LCSF_Bridge_zdc_CMDID2CMDNAME(uint_fast16_t cmdId) {
             return ZDC_CMD_SET_ENTITY_KEYEXPR;
         case LCSF_ZDC_CMD_ID_SET_ENTITY_CONFIG:
             return ZDC_CMD_SET_ENTITY_CONFIG;
+        case LCSF_ZDC_CMD_ID_CMD_STATUS:
+            return ZDC_CMD_CMD_STATUS;
     }
 }
 
@@ -164,6 +167,25 @@ static bool LCSF_Bridge_zdclist_entities_respFillAtt(lcsf_valid_att_t **pAttArra
     // Fill data of attribute entity_list
     pAttArray[ZDC_LIST_ENTITIES_RESP_ATT_ENTITY_LIST].PayloadSize = pCmdPayload->list_entities_resp_payload.entity_listSize;
     pAttArray[ZDC_LIST_ENTITIES_RESP_ATT_ENTITY_LIST].Payload.pData = pCmdPayload->list_entities_resp_payload.p_entity_list;
+    // Fill data of attribute entity_nb
+    pAttArray[ZDC_LIST_ENTITIES_RESP_ATT_ENTITY_NB].PayloadSize = GetVLESize(pCmdPayload->list_entities_resp_payload.entity_nb);
+    pAttArray[ZDC_LIST_ENTITIES_RESP_ATT_ENTITY_NB].Payload.pData = &(pCmdPayload->list_entities_resp_payload.entity_nb);
+    return true;
+}
+
+static bool LCSF_Bridge_zdccmd_statusFillAtt(lcsf_valid_att_t **pAttArrayAddr, zdc_cmd_payload_t *pCmdPayload) {
+    if (pCmdPayload == NULL) {
+        return false;
+    }
+    // Allocate attribute array
+    if (!FiloGet(&LcsfBridgezdcInfo.Filo, LCSF_ZDC_CMD_CMD_STATUS_ATT_NB, (void *)pAttArrayAddr)) {
+        return false;
+    }
+    // Intermediary variable
+    lcsf_valid_att_t *pAttArray = *pAttArrayAddr;
+    // Fill data of attribute status_value
+    pAttArray[ZDC_CMD_STATUS_ATT_STATUS_VALUE].PayloadSize = GetVLESize(pCmdPayload->cmd_status_payload.status_value);
+    pAttArray[ZDC_CMD_STATUS_ATT_STATUS_VALUE].Payload.pData = &(pCmdPayload->cmd_status_payload.status_value);
     return true;
 }
 
@@ -180,6 +202,9 @@ static bool LCSF_Bridge_zdcFillCmdAtt(uint_fast16_t cmdName, lcsf_valid_att_t **
     switch (cmdName) {
         case ZDC_CMD_LIST_ENTITIES_RESP:
             return LCSF_Bridge_zdclist_entities_respFillAtt(pAttArrayAddr, pCmdPayload);
+
+        case ZDC_CMD_CMD_STATUS:
+            return LCSF_Bridge_zdccmd_statusFillAtt(pAttArrayAddr, pCmdPayload);
 
         default: // Commands that don't have attributes
             *pAttArrayAddr = NULL;

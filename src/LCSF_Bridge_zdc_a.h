@@ -25,11 +25,17 @@ enum _lcsf_zdc_cmd_id {
     LCSF_ZDC_CMD_ID_SET_ENTITY_STATE = 0x2,
     LCSF_ZDC_CMD_ID_SET_ENTITY_KEYEXPR = 0x3,
     LCSF_ZDC_CMD_ID_SET_ENTITY_CONFIG = 0x4,
+    LCSF_ZDC_CMD_ID_CMD_STATUS = 0x5,
 };
 
 // Attribute identifier enums
+enum _lcsf_zdc_cmd_status_att_id {
+    LCSF_ZDC_CMD_STATUS_ATT_ID_STATUS_VALUE = 0x0,
+};
+
 enum _lcsf_zdc_list_entities_resp_att_id {
     LCSF_ZDC_LIST_ENTITIES_RESP_ATT_ID_ENTITY_LIST = 0x0,
+    LCSF_ZDC_LIST_ENTITIES_RESP_ATT_ID_ENTITY_NB = 0x1,
 };
 
 enum _lcsf_zdc_set_entity_config_att_id {
@@ -56,10 +62,11 @@ enum _lcsf_zdc_set_entity_state_att_id {
 // Command number
 #define LCSF_ZDC_CMD_NB ZDC_CMD_COUNT
 // Command attribute number
-#define LCSF_ZDC_CMD_LIST_ENTITIES_RESP_ATT_NB 1
+#define LCSF_ZDC_CMD_LIST_ENTITIES_RESP_ATT_NB 2
 #define LCSF_ZDC_CMD_SET_ENTITY_STATE_ATT_NB 2
 #define LCSF_ZDC_CMD_SET_ENTITY_KEYEXPR_ATT_NB 2
 #define LCSF_ZDC_CMD_SET_ENTITY_CONFIG_ATT_NB 2
+#define LCSF_ZDC_CMD_CMD_STATUS_ATT_NB 1
 
 // Protocol descriptor
 extern const lcsf_protocol_desc_t LCSF_zdc_ProtDesc;

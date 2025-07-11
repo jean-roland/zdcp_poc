@@ -17,6 +17,7 @@
 // Attribute array descriptor of command list_entities_resp
 static const lcsf_attribute_desc_t LCSF_zdc_list_entities_resp_AttDescArray[LCSF_ZDC_CMD_LIST_ENTITIES_RESP_ATT_NB] = {
     {false, LCSF_BYTE_ARRAY, LCSF_ZDC_LIST_ENTITIES_RESP_ATT_ID_ENTITY_LIST, 0, NULL},
+    {false, LCSF_UINT16, LCSF_ZDC_LIST_ENTITIES_RESP_ATT_ID_ENTITY_NB, 0, NULL},
 };
 
 // Attribute array descriptor of command set_entity_state
@@ -37,6 +38,11 @@ static const lcsf_attribute_desc_t LCSF_zdc_set_entity_config_AttDescArray[LCSF_
     {false, LCSF_BYTE_ARRAY, LCSF_ZDC_SET_ENTITY_CONFIG_ATT_ID_ENTITIY_CONFIG, 0, NULL},
 };
 
+// Attribute array descriptor of command cmd_status
+static const lcsf_attribute_desc_t LCSF_zdc_cmd_status_AttDescArray[LCSF_ZDC_CMD_CMD_STATUS_ATT_NB] = {
+    {false, LCSF_UINT8, LCSF_ZDC_CMD_STATUS_ATT_ID_STATUS_VALUE, 0, NULL},
+};
+
 // Command array descriptor
 static const lcsf_command_desc_t LCSF_zdc_CmdDescArray[LCSF_ZDC_CMD_NB] = {
     {LCSF_ZDC_CMD_ID_LIST_ENTITIES_REQ, 0, NULL},
@@ -44,6 +50,7 @@ static const lcsf_command_desc_t LCSF_zdc_CmdDescArray[LCSF_ZDC_CMD_NB] = {
     {LCSF_ZDC_CMD_ID_SET_ENTITY_STATE, LCSF_ZDC_CMD_SET_ENTITY_STATE_ATT_NB, LCSF_zdc_set_entity_state_AttDescArray},
     {LCSF_ZDC_CMD_ID_SET_ENTITY_KEYEXPR, LCSF_ZDC_CMD_SET_ENTITY_KEYEXPR_ATT_NB, LCSF_zdc_set_entity_keyexpr_AttDescArray},
     {LCSF_ZDC_CMD_ID_SET_ENTITY_CONFIG, LCSF_ZDC_CMD_SET_ENTITY_CONFIG_ATT_NB, LCSF_zdc_set_entity_config_AttDescArray},
+    {LCSF_ZDC_CMD_ID_CMD_STATUS, LCSF_ZDC_CMD_CMD_STATUS_ATT_NB, LCSF_zdc_cmd_status_AttDescArray},
 };
 
 // --- Public Constants ---

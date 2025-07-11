@@ -33,6 +33,11 @@ enum _zdc_type_e {
     ZDC_TYPE_QUERYABLE = 3,
 };
 
+enum _zdc_status_e {
+    ZDC_STATUS_OK = 0,
+    ZDC_STATUS_ERR = 1,
+};
+
 typedef void (*zdc_data_handler_t)(z_loaned_sample_t *sample, void *arg);
 typedef void (*zdc_queryable_handler_t)(z_loaned_query_t *query, void *arg);
 
@@ -72,6 +77,7 @@ typedef struct _zdc_entity_t {
 typedef struct _zdc_info {
     uint8_t *pSendBuffer;
     uint16_t buff_size;
+    uint16_t curr_msg_size;
     uint16_t el_size;
     zdc_cmd_payload_t SendCmdPayload;
     uint8_t el_idx;
@@ -105,12 +111,23 @@ static void zdc_cmd_handler(z_loaned_query_t *query, void *ctx) {
     z_owned_slice_t value;
     z_bytes_to_slice(z_query_payload(query), &value);
     if (z_slice_len(z_loan(value)) == 0) {
-        printf("Didn't receive any comment with query\n");
+        printf("Didn't receive any command with query\n");
         return;
     }
     printf("Received some command!\n");
-    LCSF_TranscoderReceive(z_slice_data(z_loan(value)), z_slice_len(z_loan(value)));
-    // TODO REPLY
+    if (!LCSF_TranscoderReceive(z_slice_data(z_loan(value)), z_slice_len(z_loan(value)))) {
+        printf("Failed to process command\n");
+    }
+    // Send reply
+    if (zdcInfo.curr_msg_size != 0) {
+        printf("Sending reply\n");
+        z_owned_bytes_t reply_payload;
+        z_bytes_from_static_buf(&reply_payload, zdcInfo.pSendBuffer, zdcInfo.curr_msg_size);
+        if (z_query_reply(query, z_query_keyexpr(query), z_move(reply_payload), NULL) != Z_OK) {
+            printf("Failed to send reply\n");
+        }
+        zdcInfo.curr_msg_size = 0;
+    }
     z_drop(z_move(value));
 }
 
@@ -195,16 +212,29 @@ static bool zdcSendCommand(uint_fast16_t cmdName, bool hasPayload) {
     if (msgSize <= 0) {
         return false;
     }
-    // TODO Pass buffer to send function
+    zdcInfo.curr_msg_size = (uint16_t)msgSize;
     return true;
 }
 
 static bool zdcExecutelist_entities_req(void) {
     printf("Listing entities\n");
-    zdcInfo.SendCmdPayload.list_entities_resp_payload.p_entity_list = (uint8_t *)zdcInfo.entity_list;
-    zdcInfo.SendCmdPayload.list_entities_resp_payload.entity_listSize = zdcInfo.el_size * sizeof(zdc_entity_t);
-    zdcSendCommand(ZDC_CMD_LIST_ENTITIES_RESP, true);
-    return true;
+    // Serialize entity data
+    size_t tmp_idx = 0;
+    uint8_t *tmp_buff = (uint8_t *)malloc(64 * zdcInfo.el_size);
+    for (size_t i = 0; i < zdcInfo.el_size; i++) {
+        // FIXME: Unsafe memory utilization
+        zdc_entity_t curr_ent = zdcInfo.entity_list[i];
+        tmp_buff[tmp_idx++] = curr_ent.type;
+        tmp_buff[tmp_idx++] = curr_ent.state;
+        tmp_buff[tmp_idx++] = curr_ent.ke_size;
+        memcpy(&tmp_buff[tmp_idx], curr_ent.ke_suffix, curr_ent.ke_size);
+        tmp_idx += curr_ent.ke_size;
+    }
+    // Fill payload data
+    zdcInfo.SendCmdPayload.list_entities_resp_payload.p_entity_list = tmp_buff;
+    zdcInfo.SendCmdPayload.list_entities_resp_payload.entity_listSize = tmp_idx;
+    zdcInfo.SendCmdPayload.list_entities_resp_payload.entity_nb = zdcInfo.el_size;
+    return zdcSendCommand(ZDC_CMD_LIST_ENTITIES_RESP, true);
 }
 
 static bool zdcExecuteset_entity_state(zdc_cmd_payload_t *pCmdPayload) {
@@ -218,9 +248,17 @@ static bool zdcExecuteset_entity_state(zdc_cmd_payload_t *pCmdPayload) {
     if (e_id >= zdcInfo.el_size) {
         return false;
     }
-    printf("Updating state: %d, %d\n", e_id, state);
+    if (e_id == 0) {
+        printf("Forbidden to update state of zdcp entity\n");
+        zdcInfo.SendCmdPayload.cmd_status_payload.status_value = ZDC_STATUS_ERR;
+        return zdcSendCommand(ZDC_CMD_CMD_STATUS, true);
+    }
+    printf("Updating state of entity: %d, new state: %s\n", e_id, (state == 1) ? "On" : "Off");
     // Set state
-    return zdc_update_entity_state(e_id, state);
+    bool status = zdc_update_entity_state(e_id, state);
+    // Send status
+    zdcInfo.SendCmdPayload.cmd_status_payload.status_value = (status) ? ZDC_STATUS_OK : ZDC_STATUS_ERR;
+    return zdcSendCommand(ZDC_CMD_CMD_STATUS, true);
 }
 
 static bool zdcExecuteset_entity_keyexpr(zdc_cmd_payload_t *pCmdPayload) {
@@ -251,7 +289,9 @@ static bool zdcExecuteset_entity_keyexpr(zdc_cmd_payload_t *pCmdPayload) {
     if (restart) {
         zdc_update_entity_state(e_id, ZDC_STATE_ON);
     }
-    return true;
+    // Send status
+    zdcInfo.SendCmdPayload.cmd_status_payload.status_value = ZDC_STATUS_OK;
+    return zdcSendCommand(ZDC_CMD_CMD_STATUS, true);
 }
 
 static bool zdcExecuteset_entity_config(zdc_cmd_payload_t *pCmdPayload) {
@@ -270,7 +310,10 @@ static bool zdcExecuteset_entity_config(zdc_cmd_payload_t *pCmdPayload) {
     // zdc_update_entity_state(e_id, ZDC_STATE_OFF);
     // zdcInfo.entity_list[e_id].config = config;
     // zdc_update_entity_state(e_id, ZDC_STATE_ON);
-    return true;
+
+    // Send status
+    zdcInfo.SendCmdPayload.cmd_status_payload.status_value = ZDC_STATUS_OK;
+    return zdcSendCommand(ZDC_CMD_CMD_STATUS, true);
 }
 
 // *** Public Functions ***
@@ -289,6 +332,7 @@ bool zdc_MainInit(const z_loaned_session_t *zs, size_t entity_nb, size_t buff_si
     zdcInfo.entity_list = (zdc_entity_t *)malloc(sizeof(zdc_entity_t) * zdcInfo.el_size);
     zdcInfo.buff_size = buff_size;
     zdcInfo.pSendBuffer = (uint8_t *)malloc(zdcInfo.buff_size);
+    zdcInfo.curr_msg_size = 0;
 
     // Clone zenoh session
     zdcInfo.session = zs;

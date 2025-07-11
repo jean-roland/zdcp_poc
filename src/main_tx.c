@@ -33,8 +33,10 @@ void reply_handler(z_loaned_reply_t *reply, void *ctx) {
         z_keyexpr_as_view_string(z_sample_keyexpr(sample), &keystr);
         z_owned_slice_t value;
         z_bytes_to_slice(z_sample_payload(sample), &value);
-        printf("Received reply on '%.*s'", (int)z_string_len(z_loan(keystr)), z_string_data(z_loan(keystr)));
-        // TODO: Process reply
+        printf("Received reply on '%.*s'\n", (int)z_string_len(z_loan(keystr)), z_string_data(z_loan(keystr)));
+        if (!LCSF_TranscoderReceive(z_slice_data(z_loan(value)), z_slice_len(z_loan(value)))) {
+            printf("Failed to process reply\n");
+        }
         z_drop(z_move(value));
     } else {
         printf(">> Received an error\n");
@@ -119,7 +121,13 @@ int main(int argc, char **argv) {
             return -1;
         }
     } else if (strcmp(cmd, "config") == 0) {
-        printf("Not yet supported\n");
+        printf("(TODO) Update config command not yet supported\n");
+        return 0;
+    } else if (strcmp(cmd, "entity") == 0) {
+        if (!zdc_encode_list_entity(&buffer, &buff_size)) {
+            printf("Failed encoding list entity\n");
+            return -1;
+        }
     }
     // Create payload
     if ((buffer == NULL) || (buff_size == 0)) {
@@ -142,6 +150,9 @@ int main(int argc, char **argv) {
     if (z_get(z_loan(s), z_loan(ke), "", z_move(callback), &opts) < 0) {
         printf("Oh no! Put has failed...\n");
     }
+    printf("Wait for reply\n");
+    // Wait for reply
+    z_sleep_s(1);
     // Clean up
     z_drop(z_move(s));
     return 0;
