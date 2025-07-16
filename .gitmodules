@@ -1,0 +1,6 @@
+[submodule "lib/zenoh-pico"]
+	path = lib/zenoh-pico
+	url = https://github.com/eclipse-zenoh/zenoh-pico.git
+[submodule "lib/lcsf_c_stack"]
+	path = lib/lcsf_c_stack
+	url = https://github.com/jean-roland/LCSF_C_Stack.git
