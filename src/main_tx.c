@@ -25,6 +25,14 @@
 #include "zenoh-pico/api/macros.h"
 #include "zenoh-pico/api/types.h"
 
+#define CMD_KEYEXPR "keyexpr"
+#define CMD_STATE "state"
+#define CMD_CONFIG "config"
+#define CMD_ENTITY "entity"
+
+#define STATE_VAL_ON "on"
+#define STATE_VAL_OFF "off"
+
 void reply_handler(z_loaned_reply_t *reply, void *ctx) {
     (void)(ctx);
     if (z_reply_is_ok(reply)) {
@@ -50,7 +58,7 @@ int main(int argc, char **argv) {
     char *cmd = NULL;
     int eid = -1;
 
-    while ((opt = getopt(argc, argv, "k:v:i:c:")) != -1) {
+    while ((opt = getopt(argc, argv, "k:v:i:c:h")) != -1) {
         switch (opt) {
             case 'k':
                 keyexpr = optarg;
@@ -64,6 +72,14 @@ int main(int argc, char **argv) {
             case 'c':
                 cmd = optarg;
                 break;
+            case 'h':
+                printf(
+                    "Usage: %s -c <command> -k <key> (optional) -i <id> -v <value> \nWith c the command you want to execute, k the keyexpr to publish the command on, i the id of the targeted entity and v the value of the command.\n",
+                    argv[0]);
+                printf(
+                    "Command list:\n* %s: Change the keyexpr of an entity. Set value with new keyexpr\n* %s: Change the state of an entity. Values are {on, off}\n* %s: Change the config of an entity. Set value with config\n* %s: List the available entities.\n",
+                    CMD_KEYEXPR, CMD_STATE, CMD_CONFIG, CMD_ENTITY);
+                return 0;
             case '?':
                 if (optopt == 'k' || optopt == 'v' || optopt == 'i' || optopt == 'c') {
                     fprintf(stderr, "Option -%c requires an argument.\n", optopt);
@@ -103,27 +119,39 @@ int main(int argc, char **argv) {
     size_t buff_size = 0;
 
     if (cmd == NULL) {
-        printf("No command specified\n");
+        printf("No command specified, use -h to print help\n");
         return -1;
     }
-    if (strcmp(cmd, "keyexpr") == 0) {
+    if (strcmp(cmd, CMD_KEYEXPR) == 0) {
+        if (value == NULL) {
+            printf("Missing command value\n");
+            return -1;
+        }
         if (!zdc_encode_keyexpr(eid, value, &buffer, &buff_size)) {
             printf("Failed encoding keyexpr\n");
             return -1;
         }
-    } else if (strcmp(cmd, "state") == 0) {
+    } else if (strcmp(cmd, CMD_STATE) == 0) {
         int state = 0;
-        if (strcmp(value, "on") == 0) {
+        if (value == NULL) {
+            printf("Missing command value\n");
+            return -1;
+        }
+        if (strcmp(value, STATE_VAL_ON) == 0) {
             state = 1;
         }
         if (!zdc_encode_state(eid, (uint_fast8_t)state, &buffer, &buff_size)) {
             printf("Failed encoding state\n");
             return -1;
         }
-    } else if (strcmp(cmd, "config") == 0) {
+    } else if (strcmp(cmd, CMD_CONFIG) == 0) {
         printf("(TODO) Update config command not yet supported\n");
+        if (value == NULL) {
+            printf("Missing command value\n");
+            return -1;
+        }
         return 0;
-    } else if (strcmp(cmd, "entity") == 0) {
+    } else if (strcmp(cmd, CMD_ENTITY) == 0) {
         if (!zdc_encode_list_entity(&buffer, &buff_size)) {
             printf("Failed encoding list entity\n");
             return -1;

@@ -47,8 +47,8 @@ static bool zdcExecutelist_entities_resp(zdc_cmd_payload_t *pCmdPayload);
 // --- Private Variables ---
 static zdc_info_t zdcInfo;
 
-static const char *ZDC_STATE_TO_STR[] = {"Off", "On", "Invalid"};
-static const char *ZDC_TYPE_TO_STR[] = {"Pub", "Sub", "Querier", "Queryable"};
+static const char *ZDC_STATE_TO_STR[] = {"off", "on", "invalid"};
+static const char *ZDC_TYPE_TO_STR[] = {"pub", "sub", "querier", "queryable"};
 
 static const lcsf_validator_protocol_desc_t lcsf_zdcp_desc = {
     LCSF_ZDC_PROTOCOL_ID,

@@ -73,7 +73,9 @@ int main(int argc, char **argv) {
 
     char buf[256];
     int idx = 0;
+    // Publisher main loop
     while (true) {
+
         sleep(1);
         if (zdc_entity_state(1) != 1) {
             idx = 0;
