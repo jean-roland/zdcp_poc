@@ -1,0 +1,118 @@
+{
+    "commands": [
+        {
+            "attributes": [
+            ],
+            "description": "Request the list all the Zenoh entities of a Zenoh node. Entity =  {id; type; cb ptr, cb name; mut state; mut keyexpr; mut config}",
+            "direction": 0,
+            "hasAtt": false,
+            "id": 0,
+            "name": "list_entities_req",
+            "parentName": "NONE",
+            "size": 0
+        },
+        {
+            "attributes": [
+                {
+                    "dataType": "LCSF_BYTE_ARRAY",
+                    "desc": "List of Zenoh entities",
+                    "id": 0,
+                    "isOptional": false,
+                    "name": "entity_list",
+                    "size": 0
+                }
+            ],
+            "description": "Response with the list of all the Zenoh entities of a Zenoh node",
+            "direction": 1,
+            "hasAtt": true,
+            "id": 1,
+            "name": "list_entities_resp",
+            "parentName": "NONE",
+            "size": 1
+        },
+        {
+            "attributes": [
+                {
+                    "dataType": "LCSF_UINT16",
+                    "desc": "Id of the entity to modify",
+                    "id": 0,
+                    "isOptional": false,
+                    "name": "entity_id",
+                    "size": 0
+                },
+                {
+                    "dataType": "LCSF_UINT8",
+                    "desc": "State value to use",
+                    "id": 1,
+                    "isOptional": false,
+                    "name": "state",
+                    "size": 0
+                }
+            ],
+            "description": "Set the state of a Zenoh entity",
+            "direction": 0,
+            "hasAtt": true,
+            "id": 2,
+            "name": "set_entity_state",
+            "parentName": "NONE",
+            "size": 2
+        },
+        {
+            "attributes": [
+                {
+                    "dataType": "LCSF_UINT16",
+                    "desc": "Id of the entity to modify",
+                    "id": 0,
+                    "isOptional": false,
+                    "name": "entity_id",
+                    "size": 0
+                },
+                {
+                    "dataType": "LCSF_STRING",
+                    "desc": "Keyexpr value to use",
+                    "id": 1,
+                    "isOptional": false,
+                    "name": "keyexpr",
+                    "size": 0
+                }
+            ],
+            "description": "Set the keyexpr of a Zenoh entity",
+            "direction": 0,
+            "hasAtt": true,
+            "id": 3,
+            "name": "set_entity_keyexpr",
+            "parentName": "NONE",
+            "size": 2
+        },
+        {
+            "attributes": [
+                {
+                    "dataType": "LCSF_UINT16",
+                    "desc": "Id of the entity to modify",
+                    "id": 0,
+                    "isOptional": false,
+                    "name": "entity_id",
+                    "size": 0
+                },
+                {
+                    "dataType": "LCSF_BYTE_ARRAY",
+                    "desc": "Config value to use",
+                    "id": 1,
+                    "isOptional": false,
+                    "name": "entitiy_config",
+                    "size": 0
+                }
+            ],
+            "description": "Set the config of a Zenoh entity",
+            "direction": 0,
+            "hasAtt": true,
+            "id": 4,
+            "name": "set_entity_config",
+            "parentName": "NONE",
+            "size": 2
+        }
+    ],
+    "desc": "Dynamically configure your Zenoh node",
+    "id": "2e",
+    "name": "zdc"
+}
